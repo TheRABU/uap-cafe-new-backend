@@ -191,6 +191,15 @@ async function run() {
         next(error);
       }
     });
+    app.get("/orders", async (req, res, next) => {
+      try {
+        const result = await orderCollection.find().toArray();
+        res.json(result);
+      } catch (error) {
+        console.error(error.message);
+        next(error);
+      }
+    });
     app.get("/myOrders/:email", async (req, res, next) => {
       try {
         const email = req.params.email;
