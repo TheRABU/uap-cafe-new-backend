@@ -4,6 +4,8 @@ const cors = require("cors");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+const axios = require("axios");
+const qs = require("qs");
 const app = express();
 
 const corsOptions = {
@@ -23,6 +25,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 const port = process.env.PORT || 5000;
@@ -52,6 +55,7 @@ async function run() {
     const foodsCollection = conn.db("uapDB").collection("menu");
 
     const orderCollection = conn.db("uapDB").collection("ordersCollection");
+    const userCollection = client.db("uapDB").collection("users");
 
     const foodRequestCollection = conn
       .db("uapDB")
@@ -64,11 +68,181 @@ async function run() {
     const clientReviewCollection = conn
       .db("uapDB")
       .collection("clientReviewCollection");
+    const paymentCollection = conn.db("uapDB").collection("paymentCollection");
 
     // app.get("/api/foods", async (req, res) => {
     //   const result = await foodsCollection.find().toArray();
     //   res.send(result);
     // });
+
+    //user
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await userCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "user already exists", insertedId: null });
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+    app.get("/users", async (req, res) => {
+      try {
+        users = await userCollection.find().toArray();
+
+        res.json(users);
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    app.get("/user/:email", async (req, res) => {
+      const result = await userCollection.findOne({
+        email: req.params.email,
+      });
+      res.send(result);
+    });
+
+    //payment
+    app.post("/create-payment", async (req, res) => {
+      try {
+        const paymentInfo = req.body;
+        const trxId = new ObjectId().toString();
+        // Payment initiation data
+        const initiateData = {
+          store_id: "uapca67436a4f6d10e",
+          store_passwd: "uapca67436a4f6d10e@ssl",
+          total_amount: paymentInfo.amount,
+          currency: "BDT",
+          tran_id: trxId,
+          success_url: "http://localhost:5000/success-payment",
+          fail_url: "http://localhost:5000/fail",
+          cancel_url: "http://localhost:5000/cancel",
+          cus_name: paymentInfo.name,
+          cus_email: paymentInfo.email,
+          product_name: paymentInfo.productName,
+          product_category: "xyz",
+          product_profile: "general",
+          cus_add1: "Dhaka",
+          cus_add2: "Dhaka",
+          cus_city: "Dhaka",
+          cus_state: "Dhaka",
+          cus_postcode: 1000,
+          cus_country: "Bangladesh",
+          cus_phone: "01711111111",
+          cus_fax: "01711111111",
+          shipping_method: "NO",
+          multi_card_name: "mastercard,visacard,amexcard",
+          value_a: "ref001_A",
+          value_b: "ref002_B",
+          value_c: "ref003_C",
+          value_d: "ref004_D",
+        };
+
+        // Send data as URL-encoded form data
+        const response = await axios.post(
+          "https://sandbox.sslcommerz.com/gwprocess/v4/api.php",
+          qs.stringify(initiateData), // URL encode the data
+          {
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+          }
+        );
+
+        const orderData = {
+          name: paymentInfo.name,
+          email: paymentInfo.email,
+          paymentId: trxId,
+          date: paymentInfo.date,
+          FoodName: paymentInfo.productName,
+          FoodImage: paymentInfo.productImage,
+          Price: paymentInfo.amount,
+          orderQuantity: paymentInfo.counter,
+          status: "pending",
+        };
+        const savePaymentData = {
+          cus_nam: paymentInfo.name,
+          paymentId: trxId,
+          amount: paymentInfo.amount,
+          status: "pending",
+        };
+        const save = await paymentCollection.insertOne(savePaymentData);
+        const saveOrder = await orderCollection.insertOne(orderData);
+        if (save && saveOrder) {
+          res.send({ paymentUrl: response.data.GatewayPageURL });
+        }
+      } catch (error) {
+        console.error(
+          "Error initiating payment:",
+          error.response?.data || error.message
+        );
+        res
+          .status(500)
+          .json({ error: error.response?.data || "Internal server error" });
+      }
+    });
+
+    app.post("/success-payment", async (req, res) => {
+      const successData = req.body;
+      const query = {
+        paymentId: successData.tran_id,
+      };
+      const update = {
+        $set: {
+          status: "Success",
+        },
+      };
+
+      if (successData.status !== "VALID") {
+        throw new Error("Unauthorized payment, Invalid payment");
+      }
+
+      const updatePaymentData = await paymentCollection.updateOne(
+        query,
+        update
+      );
+
+      const updateOrderData = await orderCollection.updateOne(query, update);
+
+      console.log("successData", successData);
+      console.log("successData", updatePaymentData);
+      console.log("successData", updateOrderData);
+      res.redirect("http://localhost:5173/success");
+    });
+    app.post("/fail", async (req, res) => {
+      const failData = req.body;
+      const query = {
+        paymentId: failData.tran_id,
+      };
+      const daletePaymentData = await paymentCollection.deleteOne(query);
+      const deleteOrderData = await orderCollection.deleteOne(query);
+      console.log("deleteData", daletePaymentData);
+      console.log("deleteData", deleteOrderData);
+      res.redirect("http://localhost:5173/fail");
+    });
+    app.post("/cancel", async (req, res) => {
+      const cancelData = req.body;
+      const query = {
+        paymentId: cancelData.tran_id,
+      };
+      const daletePaymentData = await paymentCollection.deleteOne(query);
+      const deleteOrderData = await orderCollection.deleteOne(query);
+      console.log("deleteData", daletePaymentData);
+      console.log("deleteData", deleteOrderData);
+      res.redirect("http://localhost:5173/cancel");
+    });
+
+    app.get("/payment", async (req, res) => {
+      try {
+        payment = await paymentCollection.find().toArray();
+
+        res.json(payment);
+      } catch (error) {
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
 
     app.get("/api/foods", async (req, res, next) => {
       try {
@@ -163,34 +337,19 @@ async function run() {
     //     res.status(500).send({ error: "An error occurred while searching" });
     //   }
     // });
+
     app.post("/order", async (req, res, next) => {
       try {
         const order = req.body;
-        const { Price, FoodName, orderQuantity } = order;
-        // if (Price.length === 0 || Price.length < 0) {
-        //   res.status(400).send("Invalid price");
-        // }
-        // const foodItem = await foodsCollection.findOne({ FoodName: FoodName });
-        // if (!foodItem) {
-        //   return res.status(404).send({ message: "Food item not found" });
-        // }
-        // if (foodItem.Quantity < orderQuantity) {
-        //   return res
-        //     .status(400)
-        //     .send({ message: "Not enough quantity available" });
-        // }
 
         const result = await orderCollection.insertOne(order);
-        // const updateQuantity = await foodsCollection.updateOne(
-        //   { FoodName: FoodName },
-        //   { $inc: { Quantity: -orderQuantity } }
-        // );
         res.json(result);
       } catch (error) {
         res.status(500).json({ error: error.message });
         next(error);
       }
     });
+
     app.get("/myOrders/:email", async (req, res, next) => {
       try {
         const email = req.params.email;
