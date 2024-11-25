@@ -280,6 +280,15 @@ async function run() {
         next(error);
       }
     });
+    app.get("/api/food-reviews", async (req, res, next) => {
+      try {
+        const result = await foodReviewCollection.find().toArray();
+        res.json(result);
+      } catch (error) {
+        console.log(error.message);
+        next(error);
+      }
+    });
     app.get("/api/category", async (req, res) => {
       const filter = req.query.filter; // This can be a category like 'boys', 'girls', etc.
       const limit = parseInt(req.query.limit) || 12;
@@ -350,6 +359,16 @@ async function run() {
       }
     });
 
+    app.get("/orders", async (req, res, next) => {
+      try {
+        const result = await orderCollection.find().toArray();
+        res.json(result);
+      } catch (error) {
+        console.error(error.message);
+        next(error);
+      }
+    });
+
     app.get("/myOrders/:email", async (req, res, next) => {
       try {
         const email = req.params.email;
@@ -385,6 +404,17 @@ async function run() {
         res.status(200).send(deleteOrder);
       } catch (error) {
         res.status(500).send("Could not delete item", error.message);
+        next(error);
+      }
+    });
+
+    // ClientReviews
+    app.get("/client-reviews", async (req, res, next) => {
+      try {
+        const result = await clientReviewCollection.find().toArray();
+        res.json(result);
+      } catch (error) {
+        console.error(error.message);
         next(error);
       }
     });
