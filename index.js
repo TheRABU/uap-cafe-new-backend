@@ -76,7 +76,7 @@ async function run() {
     // });
 
     //user
-
+    // USER SIGNUP-LOGIN REGISTER INFORMATION RELATED API
     app.post("/users", async (req, res) => {
       const user = req.body;
       const query = { email: user.email };
@@ -87,6 +87,7 @@ async function run() {
       const result = await userCollection.insertOne(user);
       res.send(result);
     });
+    // ALL USERS
     app.get("/users", async (req, res) => {
       try {
         users = await userCollection.find().toArray();
@@ -94,6 +95,16 @@ async function run() {
         res.json(users);
       } catch (error) {
         res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    // ROLE-BASED-USER FETCH
+    app.get("/user-role", async (req, res, next) => {
+      try {
+        const user = await userCollection.find();
+      } catch (error) {
+        console.log(error.message);
+        next(error);
       }
     });
 
@@ -244,6 +255,7 @@ async function run() {
       }
     });
 
+    /// FOOD API
     app.get("/api/foods", async (req, res, next) => {
       try {
         const query = req.query.search;
@@ -269,6 +281,54 @@ async function run() {
         next(error);
       }
     });
+
+    // FOOD POST REQUEST API
+    app.post("/api/food", async (req, res, next) => {
+      try {
+        const foodDetails = req.body;
+        const {
+          FoodName,
+          recipe,
+          image,
+          category,
+          price,
+          quantity,
+          SellerName,
+          SellerEmail,
+        } = foodDetails;
+        // TODO: ADD VALIDATION TO BACKEND LOGICS
+        const updateFood = await foodsCollection.insertOne(foodDetails);
+        res.json(updateFood);
+      } catch (error) {
+        console.log(error.message);
+        next(error);
+      }
+    });
+    // SELLER'S EMAIL FETCH VIEW DETAILS
+    app.get("/api/food/:email", async (req, res, next) => {
+      try {
+        const email = req.params.email;
+        const result = await foodsCollection.findOne({ email: email });
+        res.json(result);
+      } catch (error) {
+        console.log(error.message);
+        next(error);
+      }
+    });
+    // DELETE SELLER'S FOOD
+    app.delete("/api/food/:id", async (req, res, next) => {
+      try {
+        const id = req.params.id;
+        const deleteOrder = await foodsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.json(deleteOrder);
+      } catch (error) {
+        console.log(error.message);
+        next(error);
+      }
+    });
+    // VIEW SINGLE FOOD DETAIL
     app.get("/api/foods/:id", async (req, res, next) => {
       try {
         const id = req.params.id;
