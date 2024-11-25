@@ -18,7 +18,7 @@ const corsOptions = {
     "http://127.0.0.1:5173",
     "http://127.0.0.1:5174",
   ],
-  methods: "GET,POST,PUT,DELETE",
+  methods: "GET,POST,PUT,PATCH,DELETE",
   allowedHeaders: "Content-Type,Authorization",
   credentials: true,
   optionSuccessStatus: 200,
@@ -89,10 +89,25 @@ async function run() {
     });
     app.get("/users", async (req, res) => {
       try {
-        users = await userCollection.find().toArray();
+        // Retrieve the 'search' query parameter
+        const search = req.query.search || "";
+
+        // Define a filter for the search
+        const query = search
+          ? {
+              $or: [
+                { name: { $regex: search, $options: "i" } }, // Case-insensitive search by name
+                { email: { $regex: search, $options: "i" } }, // Case-insensitive search by email
+              ],
+            }
+          : {};
+
+        // Fetch the users matching the query
+        const users = await userCollection.find(query).toArray();
 
         res.json(users);
       } catch (error) {
+        console.error("Error fetching users:", error);
         res.status(500).json({ error: "Internal server error" });
       }
     });
@@ -102,6 +117,22 @@ async function run() {
         email: req.params.email,
       });
       res.send(result);
+    });
+
+    app.patch("/users/role/:id", async (req, res) => {
+      const userId = req.params.id;
+      const { role } = req.body;
+
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(userId) },
+        { $set: { role: role } }
+      );
+
+      if (result.modifiedCount > 0) {
+        res.json({ success: true, modifiedCount: result.modifiedCount });
+      } else {
+        res.status(400).json({ success: false, message: "Role not updated" });
+      }
     });
 
     //payment
