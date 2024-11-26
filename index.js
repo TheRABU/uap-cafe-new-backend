@@ -124,10 +124,25 @@ async function run() {
     });
 
     app.get("/user/:email", async (req, res) => {
-      const result = await userCollection.findOne({
-        email: req.params.email,
-      });
-      res.send(result);
+      try {
+        const result = await userCollection.findOne({
+          email: req.params.email,
+        });
+        res.send(result);
+      } catch (error) {
+        console.log(error.message);
+      }
+    });
+    // CHECK IF USER IS SELLER OR NOT
+    app.get("/user/role/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const findUser = await userCollection.findOne({ email: email });
+        const isSeller = findUser.role === "seller";
+        res.json({ isSeller });
+      } catch (error) {
+        console.log(error.message);
+      }
     });
 
     app.patch("/users/role/:id", async (req, res) => {
