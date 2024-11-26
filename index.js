@@ -354,7 +354,7 @@ async function run() {
     app.get("/api/food/:email", async (req, res, next) => {
       try {
         const email = req.params.email;
-        const result = await foodsCollection.findOne({ email: email });
+        const result = await foodsCollection.find({ email: email }).toArray();
         res.json(result);
       } catch (error) {
         console.log(error.message);
@@ -364,13 +364,24 @@ async function run() {
     // DELETE SELLER'S FOOD
     app.delete("/api/food/:id", async (req, res, next) => {
       try {
-        const id = req.params.id;
-        const deleteOrder = await foodsCollection.deleteOne({
+        const { id } = req.params;
+        // if (!ObjectId.isValid(id)) {
+        //   return res.status(400).json({ message: "Invalid food ID" });
+        // }
+        const deleteResult = await foodsCollection.deleteOne({
           _id: new ObjectId(id),
         });
-        res.json(deleteOrder);
+        if (deleteResult.deletedCount === 0) {
+          return res
+            .status(404)
+            .json({ message: "Food not found or already deleted" });
+        }
+        res.json({
+          message: "Food deleted successfully",
+          result: deleteResult,
+        });
       } catch (error) {
-        console.log(error.message);
+        console.error("Error deleting food:", error.message);
         next(error);
       }
     });
