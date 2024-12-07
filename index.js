@@ -64,16 +64,12 @@ async function run() {
     const foodReviewCollection = conn
       .db("uapDB")
       .collection("foodReviewCollection");
+    const reviewCollection = conn.db("uapDB").collection("foodReview");
 
     const clientReviewCollection = conn
       .db("uapDB")
       .collection("clientReviewCollection");
     const paymentCollection = conn.db("uapDB").collection("paymentCollection");
-
-    // app.get("/api/foods", async (req, res) => {
-    //   const result = await foodsCollection.find().toArray();
-    //   res.send(result);
-    // });
 
     //user
     // USER SIGNUP-LOGIN REGISTER INFORMATION RELATED API
@@ -211,8 +207,13 @@ async function run() {
         const orderData = {
           name: paymentInfo.name,
           email: paymentInfo.email,
+          sellerEmail: paymentInfo.sellerEmail,
           paymentId: trxId,
-          date: paymentInfo.date,
+          deliveryDate: paymentInfo.deliveryDate,
+          deliveryTime: paymentInfo.DeliveryTime,
+          orderDate: paymentInfo.currentDate,
+          orderTime: paymentInfo.currentTime,
+          FoodId: paymentInfo.productId,
           FoodName: paymentInfo.productName,
           FoodImage: paymentInfo.productImage,
           Price: paymentInfo.amount,
@@ -350,6 +351,54 @@ async function run() {
         next(error);
       }
     });
+    app.get("/foods", async (req, res) => {
+      try {
+        // Retrieve the 'search' query parameter
+        const search = req.query.search || "";
+
+        // Define a filter for the search
+        const query = search
+          ? {
+              $or: [
+                { name: { $regex: search, $options: "i" } }, // Case-insensitive search by name
+              ],
+            }
+          : {};
+
+        // Fetch the users matching the query
+        const users = await foodsCollection.find(query).toArray();
+
+        res.json(users);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+
+    app.get("/orders", async (req, res) => {
+      try {
+        // Retrieve the 'search' query parameter
+        const search = req.query.search || "";
+
+        // Define a filter for the search
+        const query = search
+          ? {
+              $or: [
+                { name: { $regex: search, $options: "i" } }, // Case-insensitive search by name
+                { email: { $regex: search, $options: "i" } }, // Case-insensitive search by email
+              ],
+            }
+          : {};
+
+        // Fetch the users matching the query
+        const users = await orderCollection.find(query).toArray();
+
+        res.json(users);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
     // SELLER'S EMAIL FETCH VIEW DETAILS
     app.get("/api/food/:email", async (req, res, next) => {
       try {
@@ -450,19 +499,6 @@ async function run() {
         res.status(500).send({ message: "Internal Server Error" });
       }
     });
-    // app.get("/api/foods", async (req, res) => {
-    //   const query = req.query.search;
-    //   let products;
-    //   try {
-    //     const regex = new RegExp(query, "i"); // i makes it case sensitive
-    //     const filter = await foodsCollection
-    //       .find({ FoodName: {$regex: query, $options: "i"}),
-    //       .toArray();
-    //     res.send(filter);
-    //   } catch (error) {
-    //     res.status(500).send({ error: "An error occurred while searching" });
-    //   }
-    // });
 
     app.post("/order", async (req, res, next) => {
       try {
@@ -498,6 +534,38 @@ async function run() {
         next(error);
       }
     });
+
+    app.get("/sellerOrders/:email", async (req, res, next) => {
+      try {
+        const sellerEmail = req.params.email;
+        const result = await orderCollection
+          .find({ sellerEmail: sellerEmail })
+          .toArray();
+        res.json(result);
+      } catch (error) {
+        res
+          .status(400)
+          .json("Error occurred fetching your orders", error.message);
+        next(error);
+      }
+    });
+
+    app.patch("/sellerOrder/status/:id", async (req, res) => {
+      const orderId = req.params.id;
+      const { status } = req.body;
+
+      const result = await orderCollection.updateOne(
+        { _id: new ObjectId(orderId) },
+        { $set: { status: status } }
+      );
+
+      if (result.modifiedCount > 0) {
+        res.json({ success: true, modifiedCount: result.modifiedCount });
+      } else {
+        res.status(400).json({ success: false, message: "Role not updated" });
+      }
+    });
+
     app.delete("/order/:id", async (req, res, next) => {
       try {
         const id = req.params.id;
@@ -576,111 +644,75 @@ async function run() {
       }
     });
 
-    // FOOD REVIEW COLLECTION RELATED
-    // app.post("/addFoodReview", async (req, res) => {
+    // SIFATUL VERSION
+    // app.post("/addFoodReview", async (req, res, next) => {
     //   try {
-    //     const takenReview = req.body;
-    //     const { _id, foodName, userEmail, review, reviewRatings } = takenReview;
-
-    //     // find that item from foods collection based on id and food name
-    //     // const findRequestedItem = await foodsCollection.findOne({
-    //     //   _id: new ObjectId(_id),
-    //     //   FoodName: foodName,
-    //     // });
-    //     // if (!findRequestedItem) {
-    //     //   res.status(404).send("Food Not found");
-    //     // }
-    //     // then insert the review
-    //     const postReview = await foodReviewCollection.insertOne(takenReview);
-
-    //     // if (postReview.insertedId) {
-    //     //   const updateReviewInFood = await foodsCollection.updateOne(
-    //     //     { _id: new ObjectId(_id) },
-    //     //     { $push: { reviews: takenReview } }
-    //     //   );
-    //     //   res.status(200).json(postReview);
-    //     // } else {
-    //     //   res.status(500).send("Could not post and update sorry");
-    //     // }
-
-    //     // res.json(postReview)
-    //     res.send(postReview);
-    //   } catch (error) {
-    //     res.status(404).send("could not post at the moment");
-    //   }
-    // });
-    // app.post("/addFoodReview", async (req, res) => {
-    //   try {
-    //     const takenReview = req.body;
-    //     const { _id, foodName } = takenReview;
+    //     const reviewPayload = req.body;
+    //     const { _id, ...payload } = reviewPayload;
     //     // Find the item from the foods collection based on foodName and _id
     //     const findRequestedItem = await foodsCollection.findOne({
     //       _id: new ObjectId(_id),
     //     });
     //     if (!findRequestedItem) {
-    //       console.log("Food not found in foods collection Sorry!");
+    //       console.error("Food not found in foods collection Sorry!");
+    //       throw new Error("Food not found in foods collection Sorry!");
     //     }
-    //     const postReview = await foodReviewCollection.insertOne(takenReview);
-    //     console.log("Review Posted in foodReview Collection");
-    //     if (postReview.insertedId) {
-    //       // Update the food item to include the new review
-    //       // const convertTakenReview = Object.entries(takenReview);
-
-    //       // const updateReview = await foodsCollection.updateOne(
-    //       //   { _id: new ObjectId(_id) },
-    //       //   { $push: { reviews: takenReview } }
-    //       // );
-    //       const updateReview = await foodsCollection.findOneAndUpdate(
-    //         { _id: new ObjectId(_id) },
-    //         { $set: { $push: { reviews: takenReview } } }
-    //       );
-    //       console.log(
-    //         "updated the particular food in foods collection as well"
-    //       );
-    //       res.send(postReview);
-    //     } else {
+    //     const postReview = await foodReviewCollection.insertOne({
+    //       food_id: _id,
+    //       ...payload,
+    //     });
+    //     if (!postReview.insertedId) {
     //       res.status(500).send("Could not post and update review");
+    //       return;
     //     }
+
+    //     res.status(200).json(postReview);
     //   } catch (error) {
-    //     res.status(500).send("Sorry, could not post at the moment");
-    //     console.error(error);
+    //     console.error(error.message);
+    //     res.status(500).json({
+    //       message: "Sorry, could not post at the moment",
+    //     });
+    //     next(error);
     //   }
     // });
 
-    // SIFATUL VERSION
-    app.post("/addFoodReview", async (req, res, next) => {
+    app.post("/review", async (req, res) => {
       try {
-        const reviewPayload = req.body;
-        const { _id, ...payload } = reviewPayload;
-        // Find the item from the foods collection based on foodName and _id
-        const findRequestedItem = await foodsCollection.findOne({
-          _id: new ObjectId(_id),
-        });
-        if (!findRequestedItem) {
-          console.error("Food not found in foods collection Sorry!");
-          throw new Error("Food not found in foods collection Sorry!");
-        }
-        const postReview = await foodReviewCollection.insertOne({
-          food_id: _id,
-          ...payload,
-        });
-        if (!postReview.insertedId) {
-          res.status(500).send("Could not post and update review");
-          return;
+        const { orderId, foodId, reviewText, rating, sellerEmail, userEmail } =
+          req.body;
+
+        // Construct the review object
+        const newReview = {
+          orderId,
+          foodId,
+          reviewText,
+          rating,
+          sellerEmail,
+          userEmail,
+          createdAt: new Date(),
+        };
+
+        // Insert the review into the database
+        const result = await reviewCollection.insertOne(newReview);
+
+        // Check if the review was successfully inserted
+        if (!result.insertedId) {
+          return res.status(500).json({
+            error: "Failed to post the review. Please try again later.",
+          });
         }
 
-        // const updatedFoodItem = await foodsCollection.findOneAndUpdate(
-        //   { _id: new ObjectId(_id) },
-        //   { $set: { reviews: undefined } },
-        //   { returnDocument: "after" },
-        // );
-        res.status(200).json(postReview);
-      } catch (error) {
-        console.error(error.message);
-        res.status(500).json({
-          message: "Sorry, could not post at the moment",
+        // Respond with success message and review details
+        res.status(201).json({
+          message: "Review posted successfully!",
+          reviewId: result.insertedId,
+          review: newReview,
         });
-        next(error);
+      } catch (error) {
+        console.error("Error posting review:", error.message);
+        res.status(500).json({
+          error: "An unexpected error occurred while posting the review.",
+        });
       }
     });
 
@@ -700,7 +732,7 @@ async function run() {
       try {
         const id = req.params.id;
         const query = { _id: new ObjectId(id) };
-        const findMyReview = await foodReviewCollection.deleteOne(query);
+        const findMyReview = await reviewCollection.deleteOne(query);
         res.status(200).json(findMyReview);
       } catch (error) {
         res.status(500).json({
@@ -713,13 +745,66 @@ async function run() {
     app.get("/myFoodReview/:email", async (req, res, next) => {
       try {
         const email = req.params.email;
-        const result = await foodReviewCollection
+        const result = await reviewCollection
           .find({ userEmail: email })
           .toArray();
         res.json(result);
       } catch (error) {
         res.status(500).json({ message: error.message });
         next(error);
+      }
+    });
+
+    app.get("/sellerReview/:email", async (req, res, next) => {
+      try {
+        const email = req.params.email;
+        const result = await reviewCollection
+          .find({ sellerEmail: email })
+          .toArray();
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+        next(error);
+      }
+    });
+
+    app.get("/allReview", async (req, res, next) => {
+      try {
+        const result = await reviewCollection.find().toArray();
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({ message: error.message });
+        next(error);
+      }
+    });
+
+    app.get("/reviews/:foodId", async (req, res) => {
+      const { foodId } = req.params; // Accessing the foodId from route parameters
+
+      try {
+        // Find all reviews where foodId matches
+        const reviews = await reviewCollection
+          .find({ foodId: foodId })
+          .toArray();
+
+        if (reviews.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: "No reviews found for this food item.",
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: "Reviews fetched successfully.",
+          data: reviews,
+        });
+      } catch (error) {
+        console.error("Error fetching reviews:", error);
+        res.status(500).json({
+          success: false,
+          message: "Server error. Could not fetch reviews.",
+        });
       }
     });
 
